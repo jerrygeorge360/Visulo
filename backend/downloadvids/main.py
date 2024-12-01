@@ -1,4 +1,6 @@
 import os
+import time
+
 import pandas as pd
 from yt_dlp import YoutubeDL
 from abc import ABC, abstractmethod
@@ -61,6 +63,7 @@ class Videos(VideosMeta):
                     if "subtitles" in info_dict and any(lang in subs for lang in self.language):
                         print(f'Relevant subtitles found for {video_id}...')
                         ydl.download([video_id])
+                        time.sleep(1)
 
                         # Upload files to Azure Blob Storage in a folder named after video_id
                         for file_name in os.listdir(unique_folder):
@@ -123,4 +126,4 @@ if __name__ == '__main__':
     print(storage_connection_string)
     captions = Videos(output_folder='icelandic', lang=['en-US', 'en-GB', 'en'],
                       storage_connection_string=storage_connection_string, container_name=container_name)
-    captions.get_videos('youtube-sl-25_youtube-sl-25-metadata.csv', csv_column='Bdj5MUf_3Hc', max_workers=10)
+    captions.get_videos('youtube-sl-25_youtube-sl-25-metadata.csv', csv_column='Bdj5MUf_3Hc', max_workers=3)
