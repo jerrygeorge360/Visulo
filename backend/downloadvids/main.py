@@ -8,19 +8,54 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 from azure.storage.blob import BlobServiceClient
 from dotenv import load_dotenv
+from playwright.sync_api import sync_playwright
+
+def extract_cookies(url,username,password):
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)  # Launch browser in headless mode
+        page = browser.new_page()
+
+        # Go to the desired URL
+        page.goto(url)
+        page.screenshot(path="page_screenshot.png")
+        #
+        # # Wait for the login button or other elements
+        # page.wait_for_selector('input[type="email"]')
+        # page.screenshot(path="page_screenshot.png")
+        # page.fill('input[type="email"]',username )  # Fill in the email
+        # page.click('button[type="button"]')  # Click the "Next" button after email
+        #
+        # page.wait_for_selector('input[type="password"]')  # Wait for the password field
+        # page.fill('input[type="password"]', password)  # Fill in the password
+        # page.click('button[type="button"]')  # Click the "Sign In" button
+        #
+        # # Wait for some element after login (e.g., your profile icon or a page element)
+        # page.wait_for_selector('ytd-masthead #avatar-btn')  # Wait for the avatar button to appear
+        #
+
+        cookies = page.context.cookies()
+
+        # Save cookies to a file
+        with open("cookies.txt", "w") as f:
+            for cookie in cookies:
+                f.write(f"{cookie['name']}={cookie['value']}\n")
+
+        browser.close()
+
+    print("Cookies saved to cookies.txt")
 
 class VideosMeta(ABC):
     @abstractmethod
     def get_videos(self, video_id, max_workers):
         ...
 
-
 class Videos(VideosMeta):
-    def __init__(self, output_folder: str, lang: list, storage_connection_string: str, container_name: str):
+    def __init__(self, output_folder: str, lang: list, storage_connection_string: str, container_name: str, cookies_path: str = 'cookies.txt'):
         self.output_folder = output_folder
         self.language = lang
         self.storage_connection_string = storage_connection_string
         self.container_name = container_name
+        self.cookies_path = cookies_path  # Path to cookies file
 
         self.blob_service_client = BlobServiceClient.from_connection_string(storage_connection_string)
         self.container_client = self.blob_service_client.get_container_client(container_name)
@@ -47,12 +82,12 @@ class Videos(VideosMeta):
             unique_folder = os.path.join(self.output_folder, video_id)
             os.makedirs(unique_folder, exist_ok=True)
             ydl_opts = {
-                'cookiefile': 'cookies.txt',
                 "outtmpl": os.path.join(unique_folder, "%(id)s.%(ext)s"),
                 "format": "best",
                 "writesubtitles": True,
                 "subtitleslangs": self.language,
                 "subtitlesformat": "json3",
+                "cookies": self.cookies_path  # Use the cookies file
             }
 
             with YoutubeDL(ydl_opts) as ydl:
@@ -98,6 +133,10 @@ class Videos(VideosMeta):
                     else:
                         print(f"Subtitles available for video {video_id}: {subs}")
                         failed_ids.append(video_id)
+                        # Remove the folder if it's empty
+                        if not os.listdir(unique_folder):
+                            os.rmdir(unique_folder)
+                            print(f"Deleted empty local folder: {unique_folder}")
 
                 except Exception as e:
                     print(f"Failed to download captions for {video_id}: {e}")
@@ -120,10 +159,12 @@ class Videos(VideosMeta):
 
 if __name__ == '__main__':
     load_dotenv()
-
+    url = "https://www.youtube.com"
+    username = os.getenv('YOUTUBE_USERNAME')
+    password = os.getenv('YOUTUBE_PASSWORD')
+    extract_cookies(url,username, password)
     storage_connection_string = os.getenv('AZURE_BLOB_STRING')
     container_name = os.getenv('AZURE_CONTAINER_NAME')
-    print(storage_connection_string)
     captions = Videos(output_folder='icelandic', lang=['en-US', 'en-GB', 'en'],
-                      storage_connection_string=storage_connection_string, container_name=container_name)
-    captions.get_videos('youtube-sl-25_youtube-sl-25-metadata.csv', csv_column='Bdj5MUf_3Hc', max_workers=3)
+                      storage_connection_string=storage_connection_string, container_name=container_name, cookies_path='cookies.txt')
+    captions.get_videos('youtube-sl-25_youtube-sl-25-metadata.csv', csv_column='Bdj5MUf_3Hc', max_workers=1)
