@@ -45,6 +45,7 @@ class Videos(VideosMeta):
             unique_folder = os.path.join(self.output_folder, video_id)
             os.makedirs(unique_folder, exist_ok=True)
             ydl_opts = {
+                'cookiefile': 'cookie.json',
                 "outtmpl": os.path.join(unique_folder, "%(id)s.%(ext)s"),
                 "format": "best",
                 "writesubtitles": True,
