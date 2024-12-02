@@ -8,41 +8,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 from azure.storage.blob import BlobServiceClient
 from dotenv import load_dotenv
-from playwright.sync_api import sync_playwright
 
-def extract_cookies(url,username,password):
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)  # Launch browser in headless mode
-        page = browser.new_page()
 
-        # Go to the desired URL
-        page.goto(url)
-        page.screenshot(path="page_screenshot.png")
-        #
-        # # Wait for the login button or other elements
-        # page.wait_for_selector('input[type="email"]')
-        # page.screenshot(path="page_screenshot.png")
-        # page.fill('input[type="email"]',username )  # Fill in the email
-        # page.click('button[type="button"]')  # Click the "Next" button after email
-        #
-        # page.wait_for_selector('input[type="password"]')  # Wait for the password field
-        # page.fill('input[type="password"]', password)  # Fill in the password
-        # page.click('button[type="button"]')  # Click the "Sign In" button
-        #
-        # # Wait for some element after login (e.g., your profile icon or a page element)
-        # page.wait_for_selector('ytd-masthead #avatar-btn')  # Wait for the avatar button to appear
-        #
-
-        cookies = page.context.cookies()
-
-        # Save cookies to a file
-        with open("cookies.txt", "w") as f:
-            for cookie in cookies:
-                f.write(f"{cookie['name']}={cookie['value']}\n")
-
-        browser.close()
-
-    print("Cookies saved to cookies.txt")
 
 class VideosMeta(ABC):
     @abstractmethod
@@ -86,8 +53,11 @@ class Videos(VideosMeta):
                 "format": "best",
                 "writesubtitles": True,
                 "subtitleslangs": self.language,
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
                 "subtitlesformat": "json3",
-                "cookies": self.cookies_path  # Use the cookies file
+                "nocheckcertificate": True,
+                "referer": "https://www.example.com",
+                "cookies": 'cookies.txt'  # Use the cookies file
             }
 
             with YoutubeDL(ydl_opts) as ydl:
@@ -159,12 +129,9 @@ class Videos(VideosMeta):
 
 if __name__ == '__main__':
     load_dotenv()
-    url = "https://www.youtube.com"
-    username = os.getenv('YOUTUBE_USERNAME')
-    password = os.getenv('YOUTUBE_PASSWORD')
-    extract_cookies(url,username, password)
+
     storage_connection_string = os.getenv('AZURE_BLOB_STRING')
     container_name = os.getenv('AZURE_CONTAINER_NAME')
-    captions = Videos(output_folder='icelandic', lang=['en-US', 'en-GB', 'en'],
+    captions = Videos(output_folder='english', lang=['en-US', 'en-GB', 'en'],
                       storage_connection_string=storage_connection_string, container_name=container_name, cookies_path='cookies.txt')
     captions.get_videos('youtube-sl-25_youtube-sl-25-metadata.csv', csv_column='Bdj5MUf_3Hc', max_workers=1)
